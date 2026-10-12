@@ -3,7 +3,9 @@
   "version": "2.0.0",
   "description": "JPOP 연합공연 팀간 소통 사이트",
   "scripts": {
-    "dev": "node --watch server/index.js & vite",
+    "dev": "node --watch server/index.js",
+    "dev:client": "vite",
+    "dev:mem": "node scripts/dev-memory-server.js",
     "build": "vite build",
     "start": "node server/index.js",
     "test": "node --test test/*.test.js"

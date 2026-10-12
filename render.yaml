@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: concertsite
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: jpop_union
+      # 최초 1회 관리자 진입용. 관리자 접속 코드를 만든 뒤 지우세요.
+      - key: ADMIN_BOOTSTRAP_TOKEN
+        sync: false
