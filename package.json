@@ -1,0 +1,31 @@
+{
+  "name": "concertsite",
+  "version": "2.0.0",
+  "description": "JPOP 연합공연 팀간 소통 사이트",
+  "scripts": {
+    "dev": "node --watch server/index.js & vite",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "compression": "^1.8.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.3.0",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.3.0",
+    "mongodb": "^6.21.0",
+    "multer": "^2.4.0",
+    "preact": "^10.29.8",
+    "vite": "^6.4.4"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.4.3"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
+}
