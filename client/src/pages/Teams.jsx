@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { api, fileUrl, pickFiles, uploadFiles } from '../api.js';
 import { Link, navigate, useApp } from '../app.jsx';
 import { Button, ConfirmButton, Empty, Field, Lightbox, Modal, PageHead, RichText, useForm } from '../components/ui.jsx';
@@ -216,6 +216,24 @@ function Gallery({ team, editable }) {
   );
 }
 
+/** 팀 페이지에 있는 동안 화면 전체 배경(상단바·브라우저 주소창 색 포함)을 팀 색으로 살짝 물들임 */
+function PageTint({ color }) {
+  useEffect(() => {
+    const body = document.body;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prevMeta = meta?.getAttribute('content');
+    body.classList.add('team-tinted');
+    body.style.setProperty('--page-team', color);
+    meta?.setAttribute('content', color);
+    return () => {
+      body.classList.remove('team-tinted');
+      body.style.removeProperty('--page-team');
+      if (meta && prevMeta) meta.setAttribute('content', prevMeta);
+    };
+  }, [color]);
+  return null;
+}
+
 export function Teams({ teamId }) {
   const { state } = useApp();
   const { teams, me, event } = state;
@@ -235,6 +253,7 @@ export function Teams({ teamId }) {
 
   return (
     <div class="team-page" style={teamStyle(team.themeColor || '#1D4FB5')}>
+      <PageTint color={team.themeColor || '#1D4FB5'} />
       <nav class="team-switch" aria-label="팀 선택">
         {teams.map((t) => (
           <button key={t.id} style={teamStyle(t.themeColor)} class={cx('team-tab', t.id === team.id && 'on')} aria-current={t.id === team.id ? 'page' : undefined} onClick={() => navigate(`/teams/${t.id}`, { replace: true })}>

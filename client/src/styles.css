@@ -1,22 +1,22 @@
 /* ===== 토큰 ===== */
 :root {
-  --ink: #0f1e4a;
-  --ink-2: #44517a;
-  --ink-3: #7480a3;
+  --ink: #1c1d22;
+  --ink-2: #4b4d55;
+  --ink-3: #7c7f88;
   --cobalt: #1d4fb5;
   --cobalt-deep: #143a8a;
   --sky: #8ed6ea;
-  --sky-soft: #e3f4fa;
-  --paper: #f5f8fd;
+  --sky-soft: #e8f1f7;
+  --paper: #f6f6f7;
   --surface: #ffffff;
-  --rule: #d2dcee;
-  --rule-soft: #e6ecf6;
+  --rule: #dcdde1;
+  --rule-soft: #ececef;
   --late: #c23a3f;
   --soon: #b8730a;
   --team: var(--cobalt);
   --radius: 10px;
   --radius-sm: 6px;
-  --shadow-pop: 0 18px 50px rgba(15, 30, 74, 0.22);
+  --shadow-pop: 0 18px 50px rgba(20, 20, 26, 0.22);
   --font: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --tabbar-h: 62px;
   color-scheme: light;
@@ -79,7 +79,7 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size:
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: 16px;
   padding: 10px 16px;
-  background: rgba(245, 248, 253, 0.92);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--rule);
 }
@@ -104,7 +104,7 @@ code { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size:
 .tabbar .on { color: var(--cobalt); }
 .tabbar .on svg { stroke-width: 2.4; }
 
-.sheet-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(15, 30, 74, 0.35); display: flex; align-items: flex-end; }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(20, 20, 26, 0.38); display: flex; align-items: flex-end; }
 .sheet { width: 100%; background: var(--surface); border-radius: 16px 16px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); display: grid; gap: 4px; }
 .sheet a, .sheet button { display: block; padding: 14px 4px; border: 0; background: none; text-align: left; text-decoration: none; color: var(--ink); font-weight: 600; border-bottom: 1px solid var(--rule-soft); cursor: pointer; }
 .sheet-who { font-weight: 700; padding-bottom: 6px; }
@@ -212,7 +212,7 @@ input[type='checkbox'], input[type='radio'] { width: 18px; height: 18px; accent-
 
 .segmented { display: flex; gap: 4px; padding: 4px; background: var(--rule-soft); border-radius: 999px; margin-bottom: 18px; width: fit-content; max-width: 100%; overflow-x: auto; }
 .segmented button { border: 0; background: none; padding: 7px 14px; border-radius: 999px; font-weight: 700; font-size: 14px; color: var(--ink-2); cursor: pointer; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
-.segmented button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(15, 30, 74, 0.15); }
+.segmented button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(20, 20, 26, 0.15); }
 .segmented em { font-style: normal; font-size: 12px; background: var(--late); color: #fff; border-radius: 999px; padding: 0 6px; }
 .subnav { display: flex; gap: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--rule); }
 .subnav a { padding: 8px 0; color: var(--ink-3); font-weight: 700; text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; }
@@ -222,7 +222,7 @@ input[type='checkbox'], input[type='radio'] { width: 18px; height: 18px; accent-
 .prose { max-width: 70ch; line-height: 1.8; }
 
 /* ===== 모달, 토스트, 라이트박스 ===== */
-.modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(15, 30, 74, 0.45); display: flex; align-items: flex-end; justify-content: center; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(20, 20, 26, 0.45); display: flex; align-items: flex-end; justify-content: center; }
 .modal { width: 100%; max-height: 92vh; overflow: auto; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: var(--shadow-pop); padding-bottom: env(safe-area-inset-bottom); }
 .modal-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--surface); border-bottom: 1px solid var(--rule-soft); }
 .modal-head h2 { font-size: 18px; font-weight: 800; }
@@ -598,7 +598,7 @@ button.cc-btn { cursor: pointer; }
 .sl-edit-row.dragging { opacity: 0.55; border-style: dashed; border-color: var(--cobalt); }
 
 /* ===== 모바일 보정 2 ===== */
-::placeholder { color: #a7b0c8; opacity: 1; }
+::placeholder { color: #a5a7ae; opacity: 1; }
 .hero-dday { white-space: nowrap; }
 @media (max-width: 899px) {
   .hero { grid-template-columns: 1fr 76px; }
@@ -613,3 +613,22 @@ button.cc-btn { cursor: pointer; }
 .status-opt.status-doing .dot { background: linear-gradient(90deg, currentColor 50%, transparent 50%); }
 .status-opt.status-done .dot { background: currentColor; border-color: currentColor; }
 .status-opt.on.status-done .dot { background: var(--sky); border-color: var(--sky); }
+
+/* ===== 팀 페이지: 팀 색을 화면 배경에 은은하게 ===== */
+body.team-tinted {
+  --paper: color-mix(in srgb, var(--page-team) 7%, #f7f7f8);
+  --rule-soft: color-mix(in srgb, var(--page-team) 14%, #ececef);
+  background:
+    radial-gradient(1200px 520px at 15% -10%, color-mix(in srgb, var(--page-team) 16%, transparent), transparent 70%),
+    var(--paper);
+  background-attachment: fixed;
+}
+body.team-tinted .topbar { border-bottom-color: color-mix(in srgb, var(--page-team) 30%, var(--rule)); }
+body.team-tinted .topnav a.on { background: color-mix(in srgb, var(--page-team) 75%, #1c1d22); }
+body.team-tinted .tabbar .on { color: color-mix(in srgb, var(--page-team) 80%, #1c1d22); }
+body.team-tinted .rail-box { border-color: color-mix(in srgb, var(--page-team) 45%, var(--ink)); }
+body.team-tinted .team-tab.on { background: color-mix(in srgb, var(--team) 80%, #1c1d22); border-color: transparent; }
+body.team-tinted .team-tab:not(.on) { background: color-mix(in srgb, var(--team) 6%, #fff); border-color: color-mix(in srgb, var(--team) 30%, var(--rule)); }
+.team-page .btn-primary { background: color-mix(in srgb, var(--team) 85%, #1c1d22); }
+.team-page .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--team) 70%, #1c1d22); }
+.team-page .gallery .thumb { border-color: color-mix(in srgb, var(--team) 50%, var(--ink)); }
