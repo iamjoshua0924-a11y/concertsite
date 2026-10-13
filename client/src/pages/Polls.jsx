@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import { api } from '../api.js';
 import { Link, useApp } from '../app.jsx';
 import { Button, ConfirmButton, DueBadge, Empty, Field, Modal, PageHead, RichText, TeamChip, useForm } from '../components/ui.jsx';
-import { cx, daysUntil } from '../util.js';
+import { cx, daysUntil, teamStyle } from '../util.js';
 
 const NAME_KEY = 'cs_voter_name';
 function savedName(fallback) {
@@ -151,8 +151,10 @@ export function Polls() {
   const { state } = useApp();
   const { polls, teams, me } = state;
   const [form, setForm] = useState(false);
-  const open = polls.filter((p) => p.isOpen);
-  const closed = polls.filter((p) => !p.isOpen);
+  const [teamFilter, setTeamFilter] = useState('all');
+  const shown = polls.filter((p) => teamFilter === 'all' || !p.targetTeamId || p.targetTeamId === teamFilter);
+  const open = shown.filter((p) => p.isOpen);
+  const closed = shown.filter((p) => !p.isOpen);
   return (
     <div>
       <PageHead
@@ -161,6 +163,14 @@ export function Polls() {
         actions={me.role === 'admin' && <Button variant="primary" onClick={() => setForm(true)}>새 투표</Button>}
       />
       <nav class="subnav"><Link href="/progress">제출 현황</Link><Link href="/polls" class="on" aria-current="page">투표</Link></nav>
+      {polls.some((p) => p.targetTeamId) && (
+        <div class="filter-chips" role="tablist" aria-label="팀별 보기">
+          <button role="tab" aria-selected={teamFilter === 'all'} class={teamFilter === 'all' ? 'on' : ''} onClick={() => setTeamFilter('all')}>전체</button>
+          {teams.map((t) => (
+            <button key={t.id} role="tab" aria-selected={teamFilter === t.id} class={teamFilter === t.id ? 'on' : ''} style={teamStyle(t.themeColor)} onClick={() => setTeamFilter(t.id)}><i aria-hidden="true" />{t.name}</button>
+          ))}
+        </div>
+      )}
       {open.length ? (
         <div class="poll-list">{open.map((p) => <PollCard key={p.id + (p.myVote?.optionId || '')} poll={p} teams={teams} me={me} />)}</div>
       ) : (

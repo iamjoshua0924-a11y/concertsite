@@ -116,7 +116,7 @@ export function StatusGlyph({ status }) {
   const s = COLLECTION_STATUS[status] || COLLECTION_STATUS.todo;
   return (
     <span class={`status status-${status}`}>
-      <b aria-hidden="true">{s.glyph}</b>
+      <i class="dot" aria-hidden="true" />
       {s.label}
     </span>
   );

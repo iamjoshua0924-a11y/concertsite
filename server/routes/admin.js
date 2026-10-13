@@ -1,4 +1,4 @@
-import { generateToken, hashToken, requireRole, ROLE_LABELS } from '../auth.js';
+import { generateToken, hashToken, normalizeToken, requireRole, ROLE_LABELS } from '../auth.js';
 import { storeFile } from '../files.js';
 import {
   badRequest, intInRange, newId, notFound, nowIso, optionalColor, optionalDate, optionalUrl, parseDuration, text,
@@ -7,7 +7,7 @@ import { DEFAULT_EVENT } from '../state.js';
 
 const ROLES = Object.keys(ROLE_LABELS);
 
-export function adminRoutes(router, { db, bucket, sessions }) {
+export function adminRoutes(router, { db, bucket, sessions, config }) {
   const tokens = db.collection('tokens');
   const admin = requireRole('admin');
 
@@ -24,19 +24,30 @@ export function adminRoutes(router, { db, bucket, sessions }) {
     return { label: text(b.label, { name: '이름', max: 40, required: true }), role, note: text(b.note, { name: '메모', max: 200 }) };
   }
 
-  async function createToken({ label, role, teamId, note }) {
-    // 충돌 가능성은 사실상 0이지만 유니크 인덱스 위반 시 재시도
+  /** 직접 지정한 비밀번호 검증. 영문/숫자 6자 이상(대소문자·하이픈·공백 무시) */
+  function customToken(raw) {
+    if (raw == null || String(raw).trim() === '') return '';
+    const v = String(raw).trim();
+    if (normalizeToken(v).length < 6) throw badRequest('비밀번호는 영문·숫자 6자 이상으로 정하세요.');
+    if (normalizeToken(v).length > 40) throw badRequest('비밀번호는 40자 이하로 정하세요.');
+    if (normalizeToken(config.adminBootstrapToken) === normalizeToken(v)) throw badRequest('초기 관리자 코드와 같은 값은 쓸 수 없습니다.');
+    return v;
+  }
+
+  async function createToken({ label, role, teamId, note, custom = '' }) {
+    // 자동 생성은 충돌 가능성이 사실상 0이지만 유니크 인덱스 위반 시 재시도
     for (let i = 0; i < 3; i += 1) {
-      const token = generateToken();
+      const token = custom || generateToken();
       const doc = { _id: newId('tok'), label, role, teamId, note, hash: hashToken(token), active: true, version: 0, createdAt: nowIso(), lastUsedAt: '' };
       try {
         await tokens.insertOne(doc);
         return { id: doc._id, label, role, teamId, token };
       } catch (e) {
         if (e.code !== 11000) throw e;
+        if (custom) throw badRequest('이미 다른 사람이 쓰는 비밀번호입니다.');
       }
     }
-    throw new Error('토큰 생성에 실패했습니다.');
+    throw new Error('비밀번호 생성에 실패했습니다.');
   }
 
   router.get('/admin/tokens', admin, async (_req, res) => {
@@ -46,7 +57,7 @@ export function adminRoutes(router, { db, bucket, sessions }) {
 
   router.post('/admin/tokens', admin, async (req, res) => {
     const f = tokenFields(req.body || {});
-    const created = await createToken({ ...f, teamId: await checkTeam(req.body?.teamId) });
+    const created = await createToken({ ...f, teamId: await checkTeam(req.body?.teamId), custom: customToken(req.body?.token) });
     res.json({ ok: true, ...created });
   });
 
@@ -68,8 +79,14 @@ export function adminRoutes(router, { db, bucket, sessions }) {
 
   /** 재발급: 새 코드 발급 + version 증가 → 기존 로그인 세션 모두 무효화 */
   router.post('/admin/tokens/:id/reissue', admin, async (req, res) => {
-    const token = generateToken();
-    const r = await tokens.updateOne({ _id: req.params.id }, { $set: { hash: hashToken(token), active: true, updatedAt: nowIso() }, $inc: { version: 1 } });
+    const token = customToken(req.body?.token) || generateToken();
+    let r;
+    try {
+      r = await tokens.updateOne({ _id: req.params.id }, { $set: { hash: hashToken(token), active: true, updatedAt: nowIso() }, $inc: { version: 1 } });
+    } catch (e) {
+      if (e.code === 11000) throw badRequest('이미 다른 사람이 쓰는 비밀번호입니다.');
+      throw e;
+    }
     if (!r.matchedCount) throw notFound();
     sessions.invalidate(req.params.id);
     res.json({ ok: true, token });
@@ -85,7 +102,7 @@ export function adminRoutes(router, { db, bucket, sessions }) {
   router.get('/admin/export', admin, async (_req, res) => {
     const names = ['settings', 'teams', 'collections', 'polls', 'votes', 'meetings', 'questions', 'posts', 'activity'];
     const out = { format: 'concertsite-backup@1', exportedAt: nowIso() };
-    for (const n of names) out[n] = await db.collection(n).find().toArray();
+    for (const n of names) out[n] = await db.collection(n).find(n === 'settings' ? { _id: { $ne: 'sessionSecret' } } : {}).toArray();
     out.tokens = await tokens.find({}, { projection: { hash: 0 } }).toArray();
     out.files = (await bucket.find().toArray()).map((f) => ({ id: f._id.toHexString(), name: f.filename, size: f.length, type: f.metadata?.contentType }));
     res.setHeader('Content-Disposition', `attachment; filename="concertsite-backup-${nowIso().slice(0, 10)}.json"`);
@@ -102,7 +119,7 @@ export function adminRoutes(router, { db, bucket, sessions }) {
     }
     if (existing > 0) {
       for (const n of ['settings', 'teams', 'collections', 'polls', 'votes', 'meetings', 'questions', 'posts', 'activity']) {
-        await db.collection(n).deleteMany({});
+        await db.collection(n).deleteMany(n === 'settings' ? { _id: { $ne: 'sessionSecret' } } : {});
       }
       await bucket.drop().catch(() => {});
     }

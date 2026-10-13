@@ -38,7 +38,7 @@ before(async () => {
   await client.connect();
   const db = client.db('test');
   await ensureIndexes(db);
-  const config = { ...loadConfig({}), adminBootstrapToken: BOOT };
+  const config = { ...loadConfig({}), adminBootstrapToken: BOOT, sessionSecret: 'test-secret-test-secret-test-secret-00' };
   const app = createApp({ db, bucket: new GridFSBucket(db, { bucketName: 'files' }), config });
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
@@ -219,6 +219,16 @@ test('토큰 재발급 시 기존 세션 무효화, 비활성화 즉시 반영',
   await member.get('/api/state');
   await admin.patch(`/api/admin/tokens/${tokens.member.id}`, { active: false });
   assert.equal((await member.get('/api/state')).status, 401);
+});
+
+test('비밀번호 직접 지정: 6자 미만 거부, 중복 거부, 대소문자 무시 로그인', async () => {
+  assert.equal((await admin.post('/api/admin/tokens', { label: 'x', role: 'member', token: 'abc' })).status, 400);
+  const r = await admin.post('/api/admin/tokens', { label: '스미네 멤버', role: 'member', teamId: 't2', token: 'sumine-2027' });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.token, 'sumine-2027');
+  assert.equal((await admin.post('/api/admin/tokens', { label: 'y', role: 'member', token: 'SUMINE2027' })).status, 400, '정규화 후 중복');
+  const a = new Agent();
+  assert.equal((await a.post('/api/auth/login', { token: 'Sumine 2027' })).status, 200);
 });
 
 test('로그인 시도 제한', async () => {

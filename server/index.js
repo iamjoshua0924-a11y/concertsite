@@ -1,9 +1,13 @@
 import { loadConfig } from './config.js';
-import { connectDb } from './db.js';
+import { connectDb, resolveSessionSecret } from './db.js';
 import { createApp } from './app.js';
 
 const config = loadConfig();
 const { client, db, bucket } = await connectDb(config);
+if (!config.sessionSecret) {
+  config.sessionSecret = await resolveSessionSecret(db, '');
+  console.log('SESSION_SECRET 환경변수가 없어 DB에 저장된 키를 사용합니다.');
+}
 const app = createApp({ db, bucket, config });
 
 const server = app.listen(config.port, () => {

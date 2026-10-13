@@ -1,15 +1,51 @@
 import { useState } from 'preact/hooks';
-import { fileUrl } from '../api.js';
+import { api, fileUrl } from '../api.js';
 import { Link, useApp } from '../app.jsx';
-import { DueBadge, Lightbox, RichText, StatusGlyph, TeamChip } from '../components/ui.jsx';
+import { Button, DueBadge, Field, Lightbox, Modal, RichText, StatusGlyph, TeamChip, useForm } from '../components/ui.jsx';
+import { ImportButton } from './Admin.jsx';
 import { buildTimeline, daysUntil, ddayLabel, formatDate, myTodos, relativeTime, teamStyle } from '../util.js';
 
-function Hero({ event, teams }) {
+/** 홈에서 바로 고치는 공연 정보 (기존 사이트의 '메인 정보 편집') */
+function EventQuickEdit({ event, onClose, focus }) {
+  const { run } = useApp();
+  const f = useForm({
+    title: event.title, venue: event.venue, eventDate: event.eventDate, startTime: event.startTime, endTime: event.endTime,
+    notice: event.notice, scheduleNote: event.scheduleNote,
+  });
+  const save = () => run(() => api.patch('/event', f.values), '저장했습니다.').then(onClose);
+  return (
+    <Modal title={focus === 'notice' ? '공지 수정' : '공연 정보 수정'} onClose={onClose} wide>
+      <div class="form-grid">
+        {focus === 'notice' ? (
+          <Field label="공지사항 / 전달사항" wide><textarea rows={8} {...f.bind('notice')} /></Field>
+        ) : (
+          <>
+            <Field label="공연명" wide><input {...f.bind('title')} /></Field>
+            <Field label="장소"><input {...f.bind('venue')} /></Field>
+            <Field label="공연일"><input type="date" {...f.bind('eventDate')} /></Field>
+            <Field label="시작"><input type="time" {...f.bind('startTime')} /></Field>
+            <Field label="대관 종료"><input type="time" {...f.bind('endTime')} /></Field>
+            <Field label="공연·리허설 순서 메모" wide><textarea rows={3} {...f.bind('scheduleNote')} /></Field>
+            <Field label="공지사항 / 전달사항" wide><textarea rows={4} {...f.bind('notice')} /></Field>
+          </>
+        )}
+      </div>
+      <p class="fineprint">톡방 링크, 팀당 시간, 공연 순서, 바로가기 링크는 <Link href="/admin/event">관리 → 공연 정보</Link>에서 바꿉니다.</p>
+      <div class="row-actions">
+        <Button variant="quiet" onClick={onClose}>취소</Button>
+        <Button variant="primary" onClick={save}>저장</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function Hero({ event, teams, onEdit }) {
   const [lightbox, setLightbox] = useState(false);
   const dday = daysUntil(event.eventDate);
   const poster = event.posters?.[0];
   return (
     <section class="hero tone">
+      {onEdit && <button class="hero-edit" onClick={onEdit}>편집</button>}
       <div class="hero-text">
         {dday != null && <p class="hero-dday" aria-label={`공연까지 ${dday}일`}>{ddayLabel(dday)}</p>}
         <h1 class="hero-title">{event.title}</h1>
@@ -169,20 +205,44 @@ export function Home() {
   const { state } = useApp();
   const { event, teams, me } = state;
   const isAdmin = me.role === 'admin';
+  const [edit, setEdit] = useState(null);
+
+  if (isAdmin && !teams.length) {
+    return (
+      <div class="home">
+        <section class="onboard tone">
+          <h1>새 사이트가 준비됐습니다</h1>
+          <p>기존 Apps Script 사이트의 팀, 셋리스트, 이미지, 취합, 투표, 운영규약, 공지를 한 번에 가져옵니다.</p>
+          <ol>
+            <li>컴퓨터의 <strong>바탕화면 &gt; 소통사이트</strong> 폴더에 있는 <code>import-data.json</code>을 선택하세요.</li>
+            <li>가져오기가 끝나면 사람별 새 비밀번호와 접속 링크가 표시됩니다. 각자에게 보내세요.</li>
+          </ol>
+          <div class="onboard-actions">
+            <ImportButton label="기존 데이터 가져오기" />
+            <Link href="/admin/teams" class="btn btn-default">처음부터 팀 만들기</Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div class="home">
-      <Hero event={event} teams={teams} />
+      <Hero event={event} teams={teams} onEdit={isAdmin ? () => setEdit('event') : null} />
       <div class="home-grid">
         <div class="col">
           {me.teamId || !isAdmin ? <Todos state={state} /> : null}
-          {isAdmin && <Overview state={state} />}
+          {isAdmin && <div class="home-overview"><Overview state={state} /></div>}
           <Timeline event={event} teams={teams} isAdmin={isAdmin} />
         </div>
         <div class="col">
-          {event.notice && (
+          {(event.notice || isAdmin) && (
             <section class="block notice">
-              <header class="block-head"><h2>공지</h2></header>
-              <RichText text={event.notice} />
+              <header class="block-head">
+                <h2>공지</h2>
+                {isAdmin && <Button small variant="quiet" onClick={() => setEdit('notice')}>수정</Button>}
+              </header>
+              {event.notice ? <RichText text={event.notice} /> : <p class="muted">공지사항이 없습니다.</p>}
             </section>
           )}
           {(event.talkRoomUrl || event.links?.length > 0) && (
@@ -194,9 +254,10 @@ export function Home() {
               </ul>
             </section>
           )}
-          <Activity items={state.activity} teams={teams} />
+          <div class="home-activity"><Activity items={state.activity} teams={teams} /></div>
         </div>
       </div>
+      {edit && <EventQuickEdit event={event} focus={edit} onClose={() => setEdit(null)} />}
     </div>
   );
 }

@@ -55,10 +55,37 @@ export function Link({ href, children, ...rest }) {
 }
 
 /* ---------- 전역 상태 ---------- */
+const CACHE_KEY = 'cs_state_v1';
+const CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 14;
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c?.state || Date.now() - Number(c.ts || 0) > CACHE_MAX_AGE) return null;
+    return c.state;
+  } catch {
+    return null;
+  }
+}
+function writeCache(state) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), state })); } catch { /* 저장 공간 부족 등은 무시 */ }
+}
+export function clearCache() {
+  try { localStorage.removeItem(CACHE_KEY); } catch { /* 무시 */ }
+}
+
 export function AppProvider({ children }) {
-  const [state, setState] = useState(null);
-  const [status, setStatus] = useState('loading'); // loading | ready | anon | error
+  // 기기에 저장된 마지막 화면을 즉시 보여주고, 뒤에서 서버와 동기화 (서버가 잠들어 있어도 바로 열람 가능)
+  const cacheRef = useRef(undefined);
+  if (cacheRef.current === undefined) cacheRef.current = readCache();
+  const cached = cacheRef.current;
+  const [state, setState] = useState(cached);
+  const [status, setStatus] = useState(cached ? 'ready' : 'loading'); // loading | ready | anon | error
+  const [syncing, setSyncing] = useState(true);
   const [toasts, setToasts] = useState([]);
+  const [overlay, setOverlay] = useState(null); // 화면 전환과 무관하게 유지해야 하는 창(예: 발급된 비밀번호)
   const toastId = useRef(0);
 
   const toast = useCallback((message, kind = 'ok') => {
@@ -68,13 +95,16 @@ export function AppProvider({ children }) {
   }, []);
 
   const reload = useCallback(async () => {
+    setSyncing(true);
     try {
       const s = await api.get('/state');
       setState(s);
       setStatus('ready');
+      writeCache(s);
       return s;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
+        clearCache();
         setState(null);
         setStatus('anon');
       } else {
@@ -82,6 +112,8 @@ export function AppProvider({ children }) {
         toast(e.message, 'error');
       }
       return null;
+    } finally {
+      setSyncing(false);
     }
   }, [toast]);
 
@@ -109,10 +141,11 @@ export function AppProvider({ children }) {
     }
   }, [reload, toast]);
 
-  const value = { state, status, reload, run, toast, setStatus };
+  const value = { state, status, syncing, reload, run, toast, setStatus, setOverlay };
   return (
     <AppCtx.Provider value={value}>
       {children}
+      {overlay}
       <div class="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} class={`toast toast-${t.kind}`}>{t.message}</div>

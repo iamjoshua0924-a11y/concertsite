@@ -55,6 +55,17 @@ function SetlistEditor({ team, slot, onDone }) {
   const [rows, setRows] = useState(() => (team.setlist.length ? team.setlist.map((s) => ({ ...s, duration: formatDuration(s.duration) })) : [emptyRow()]));
   const [bulk, setBulk] = useState('');
   const [showBulk, setShowBulk] = useState(false);
+  const [dragIdx, setDragIdx] = useState(-1);
+  const dragTo = (to) => {
+    if (dragIdx < 0 || dragIdx === to) return;
+    setRows((r) => {
+      const c = [...r];
+      const [it] = c.splice(dragIdx, 1);
+      c.splice(to, 0, it);
+      return c;
+    });
+    setDragIdx(to);
+  };
 
   const update = (i, key, val) => setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [key]: val } : row)));
   const move = (i, d) => setRows((r) => {
@@ -78,12 +89,23 @@ function SetlistEditor({ team, slot, onDone }) {
     <div class="setlist-editor">
       <ol class="sl-edit-list">
         {rows.map((r, i) => (
-          <li key={i} class="sl-edit-row">
-            <span class="sl-no">{i + 1}</span>
+          <li
+            key={i}
+            class={cx('sl-edit-row', dragIdx === i && 'dragging')}
+            onDragOver={(e) => { e.preventDefault(); dragTo(i); }}
+            onDrop={(e) => e.preventDefault()}
+          >
+            <span
+              class="sl-no sl-handle"
+              draggable
+              title="끌어서 순서 바꾸기"
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); setDragIdx(i); }}
+              onDragEnd={() => setDragIdx(-1)}
+            >{i + 1}</span>
             <div class="sl-edit-fields">
               <input aria-label="곡명" placeholder="곡명" value={r.title} onInput={(e) => update(i, 'title', e.currentTarget.value)} />
               <input aria-label="아티스트" placeholder="아티스트" value={r.artist} onInput={(e) => update(i, 'artist', e.currentTarget.value)} />
-              <input aria-label="러닝타임" placeholder="3:45" inputMode="numeric" class="sl-dur" value={r.duration} onInput={(e) => update(i, 'duration', e.currentTarget.value)} />
+              <input aria-label="러닝타임" placeholder="분:초" inputMode="numeric" class="sl-dur" value={r.duration} onInput={(e) => update(i, 'duration', e.currentTarget.value)} />
               <input aria-label="큐시트" placeholder="큐시트 (조명, MTR, 음향 요청)" class="sl-wide" value={r.cue} onInput={(e) => update(i, 'cue', e.currentTarget.value)} />
               <input aria-label="비고" placeholder="비고" class="sl-wide" value={r.note} onInput={(e) => update(i, 'note', e.currentTarget.value)} />
             </div>
@@ -212,7 +234,7 @@ export function Teams({ teamId }) {
   const slot = Number(event.slotMinutes) || 40;
 
   return (
-    <div class="team-page" style={teamStyle(team.themeColor)}>
+    <div class="team-page" style={teamStyle(team.themeColor || '#1D4FB5')}>
       <nav class="team-switch" aria-label="팀 선택">
         {teams.map((t) => (
           <button key={t.id} style={teamStyle(t.themeColor)} class={cx('team-tab', t.id === team.id && 'on')} aria-current={t.id === team.id ? 'page' : undefined} onClick={() => navigate(`/teams/${t.id}`, { replace: true })}>

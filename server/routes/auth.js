@@ -16,7 +16,7 @@ export function authRoutes(router, { db, config }) {
 
   async function login(req, res, raw) {
     const doc = await findTokenForLogin(db, config, raw);
-    if (!doc) throw new HttpError(401, '유효하지 않은 접속 코드입니다.');
+    if (!doc) throw new HttpError(401, '비밀번호가 맞지 않습니다.');
     res.cookie(COOKIE_NAME, signSession(config.sessionSecret, { tid: doc._id, v: Number(doc.version || 0), iat: Date.now() }), sessionCookieOptions(config));
     if (doc._id !== '__bootstrap__') {
       await db.collection('tokens').updateOne({ _id: doc._id }, { $set: { lastUsedAt: new Date().toISOString() } });

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { MongoClient, GridFSBucket } from 'mongodb';
 
 export async function connectDb(config) {
@@ -29,4 +30,20 @@ export async function getSetting(db, id, fallback = {}) {
 
 export async function logActivity(db, { type, text, teamId = '', href = '' }) {
   await db.collection('activity').insertOne({ type, text, teamId, href, at: new Date().toISOString() });
+}
+
+/**
+ * 세션 서명 키. 환경변수가 없으면 DB에 한 번 만들어 두고 계속 재사용한다.
+ * (매번 새로 만들면 Render 무료 플랜이 잠들었다 깰 때마다 전원 로그아웃됨)
+ */
+export async function resolveSessionSecret(db, fromEnv) {
+  if (fromEnv) return fromEnv;
+  const fresh = crypto.randomBytes(48).toString('base64url');
+  await db.collection('settings').updateOne(
+    { _id: 'sessionSecret' },
+    { $setOnInsert: { value: fresh, createdAt: new Date().toISOString() } },
+    { upsert: true },
+  );
+  const doc = await db.collection('settings').findOne({ _id: 'sessionSecret' });
+  return doc.value;
 }

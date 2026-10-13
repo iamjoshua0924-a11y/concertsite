@@ -137,7 +137,7 @@ function TeamSettings() {
                 <code class="muted">/teams/{t.id}</code>
                 <span class="row-actions">
                   <Button small variant="quiet" onClick={() => navigate(`/teams/${t.id}`)}>팀 페이지</Button>
-                  <ConfirmButton confirmLabel="팀과 접속 코드 비활성화" onConfirm={() => run(() => api.del(`/teams/${t.id}`), '팀을 삭제했습니다.')}>삭제</ConfirmButton>
+                  <ConfirmButton confirmLabel="팀 삭제, 팀원 비밀번호 끄기" onConfirm={() => run(() => api.del(`/teams/${t.id}`), '팀을 삭제했습니다.')}>삭제</ConfirmButton>
                 </span>
               </li>
             ))}
@@ -148,13 +148,13 @@ function TeamSettings() {
   );
 }
 
-/* ---------- 접속 코드 ---------- */
+/* ---------- 비밀번호(접속 링크) ---------- */
 function IssuedPanel({ issued, onClose }) {
   const copy = useCopy();
   const all = issued.map((t) => `${t.label}: ${magicLink(t.token)}`).join('\n');
   return (
-    <Modal title="새 접속 코드" onClose={onClose} wide>
-      <p class="modal-lead">이 화면을 닫으면 코드를 다시 볼 수 없습니다. 지금 각자에게 보내세요. 잃어버리면 &lsquo;재발급&rsquo;하면 됩니다.</p>
+    <Modal title="발급된 비밀번호" onClose={onClose} wide>
+      <p class="modal-lead">이 화면을 닫으면 다시 볼 수 없습니다. 지금 각자에게 보내세요. 잃어버리면 &lsquo;재발급&rsquo;하면 됩니다.</p>
       <ul class="issued">
         {issued.map((t) => (
           <li key={t.id}>
@@ -163,8 +163,8 @@ function IssuedPanel({ issued, onClose }) {
               <code class="code">{t.token}</code>
             </div>
             <span class="row-actions">
-              <Button small onClick={() => copy(`${t.label}님, 연합공연 소통 사이트 접속 링크입니다.\n${magicLink(t.token)}\n(링크를 누르면 바로 로그인됩니다. 다른 사람에게 공유하지 마세요.)`, '안내 문구를 복사했습니다.')}>안내 문구 복사</Button>
-              <Button small variant="quiet" onClick={() => copy(t.token)}>코드만</Button>
+              <Button small onClick={() => copy(`${t.label}님, 연합공연 소통 사이트 접속 링크입니다.\n${magicLink(t.token)}\n링크를 누르면 바로 로그인됩니다. 직접 입력할 때 비밀번호: ${t.token}\n(다른 사람에게 공유하지 마세요.)`, '안내 문구를 복사했습니다.')}>안내 문구 복사</Button>
+              <Button small variant="quiet" onClick={() => copy(magicLink(t.token), '접속 링크를 복사했습니다.')}>링크만</Button>
             </span>
           </li>
         ))}
@@ -174,25 +174,45 @@ function IssuedPanel({ issued, onClose }) {
   );
 }
 
+function ReissueModal({ token, onDone, onClose }) {
+  const { run } = useApp();
+  const [custom, setCustom] = useState('');
+  const go = () => run(() => api.post(`/admin/tokens/${token.id}/reissue`, { token: custom })).then((r) => onDone({ ...token, token: r.token }));
+  return (
+    <Modal title={`${token.label} 비밀번호 재발급`} onClose={onClose}>
+      <p class="modal-lead">새 비밀번호를 만들면 이 사람의 기존 로그인은 모든 기기에서 끊깁니다.</p>
+      <Field label="새 비밀번호 (선택)" hint="비워두면 자동 생성합니다. 직접 정하려면 영문·숫자 6자 이상.">
+        <input value={custom} onInput={(e) => setCustom(e.currentTarget.value)} autocomplete="off" spellcheck={false} />
+      </Field>
+      <div class="row-actions">
+        <Button variant="quiet" onClick={onClose}>취소</Button>
+        <Button variant="primary" onClick={go}>재발급</Button>
+      </div>
+    </Modal>
+  );
+}
+
 function TokenSettings() {
   const { state, run } = useApp();
   const [list, setList] = useState(null);
   const [issued, setIssued] = useState(null);
-  const f = useForm({ label: '', role: 'member', teamId: state.teams[0]?.id || '', note: '' });
+  const [reissuing, setReissuing] = useState(null);
+  const f = useForm({ label: '', role: 'member', teamId: state.teams[0]?.id || '', note: '', token: '' });
   const load = () => api.get('/admin/tokens').then((r) => setList(r.tokens));
   useEffect(() => { load(); }, []);
   const teamById = Object.fromEntries(state.teams.map((t) => [t.id, t]));
+  const byTeam = (list || []).reduce((acc, t) => { (acc[t.teamId || ''] ||= []).push(t); return acc; }, {});
+  const groups = [...state.teams.map((t) => [t.id, t]), ['', null]].filter(([id]) => byTeam[id]?.length);
 
-  const create = () => run(() => api.post('/admin/tokens', f.values)).then((r) => { setIssued([r]); f.set('label', ''); load(); });
-  const reissue = (t) => run(() => api.post(`/admin/tokens/${t.id}/reissue`)).then((r) => { setIssued([{ ...t, token: r.token }]); load(); });
+  const create = () => run(() => api.post('/admin/tokens', f.values)).then((r) => { setIssued([r]); f.setValues((v) => ({ ...v, label: '', token: '' })); load(); });
   const toggle = (t) => run(() => api.patch(`/admin/tokens/${t.id}`, { active: !t.active }), t.active ? '비활성화했습니다.' : '다시 활성화했습니다.').then(load);
   const remove = (t) => run(() => api.del(`/admin/tokens/${t.id}`), '삭제했습니다.').then(load);
 
   return (
     <div class="admin-sections">
       <section class="block">
-        <header class="block-head"><h2>접속 코드 만들기</h2></header>
-        <p class="muted">사람마다 하나씩 만드는 것을 권합니다. 한 사람이 빠지면 그 코드만 끄면 됩니다.</p>
+        <header class="block-head"><h2>비밀번호 만들기</h2></header>
+        <p class="muted">사람마다 하나씩 만드는 것을 권합니다. 한 사람이 빠지면 그 비밀번호만 끄면 됩니다.</p>
         <div class="form-grid">
           <Field label="이름"><input placeholder="예: 코모레비 대표 홍길동" {...f.bind('label')} /></Field>
           <Field label="역할">
@@ -208,42 +228,48 @@ function TokenSettings() {
               {state.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </Field>
-          <Field label="메모"><input {...f.bind('note')} /></Field>
+          <Field label="비밀번호 (선택)" hint="비워두면 자동 생성. 직접 정하면 영문·숫자 6자 이상, 대소문자 구분 없음.">
+            <input placeholder="예: comorebi-lead" autocomplete="off" spellcheck={false} {...f.bind('token')} />
+          </Field>
+          <Field label="메모" wide><input {...f.bind('note')} /></Field>
         </div>
-        <div class="row-actions"><Button variant="primary" disabled={!f.values.label.trim()} onClick={create}>코드 만들기</Button></div>
+        <div class="row-actions"><Button variant="primary" disabled={!f.values.label.trim()} onClick={create}>만들기</Button></div>
       </section>
       <section class="block">
-        <header class="block-head"><h2>발급된 코드</h2>{list && <span class="count">{list.length}</span>}</header>
-        {!list ? <p class="muted">불러오는 중</p> : list.length ? (
-          <ul class="token-list">
-            {list.map((t) => (
-              <li key={t.id} class={t.active ? '' : 'inactive'}>
-                <div class="token-main">
-                  <strong>{t.label}</strong>
-                  <span class="muted">{t.roleLabel}{t.note ? `, ${t.note}` : ''}</span>
-                </div>
-                {t.teamId && teamById[t.teamId] ? <TeamChip team={teamById[t.teamId]} small /> : <span />}
-                <span class="muted token-used">{t.active ? (t.lastUsedAt ? `${relativeTime(t.lastUsedAt)} 접속` : '아직 접속 안 함') : '꺼짐'}</span>
-                <span class="row-actions">
-                  <Button small variant="quiet" onClick={() => reissue(t)}>재발급</Button>
-                  <Button small variant="quiet" onClick={() => toggle(t)}>{t.active ? '끄기' : '켜기'}</Button>
-                  <ConfirmButton onConfirm={() => remove(t)}>삭제</ConfirmButton>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : <Empty>발급된 코드가 없습니다.</Empty>}
+        <header class="block-head"><h2>발급된 비밀번호</h2>{list && <span class="count">{list.length}</span>}</header>
+        <p class="muted">보안을 위해 비밀번호 값은 저장하지 않습니다. 잊어버린 사람은 재발급하세요.</p>
+        {!list ? <p class="muted">불러오는 중</p> : list.length ? groups.map(([id, team]) => (
+          <div key={id || 'none'} class="token-group" style={teamStyle(team?.themeColor)}>
+            <h3>{team ? <TeamChip team={team} /> : '팀 없음'}</h3>
+            <ul class="token-list">
+              {byTeam[id].map((t) => (
+                <li key={t.id} class={t.active ? '' : 'inactive'}>
+                  <div class="token-main">
+                    <strong>{t.label}</strong>
+                    <span class="muted">{t.roleLabel}{t.note ? `, ${t.note}` : ''}</span>
+                  </div>
+                  <span class="muted token-used">{t.active ? (t.lastUsedAt ? `${relativeTime(t.lastUsedAt)} 접속` : '아직 접속 안 함') : '꺼짐'}</span>
+                  <span class="row-actions">
+                    <Button small variant="quiet" onClick={() => setReissuing(t)}>재발급</Button>
+                    <Button small variant="quiet" onClick={() => toggle(t)}>{t.active ? '끄기' : '켜기'}</Button>
+                    <ConfirmButton onConfirm={() => remove(t)}>삭제</ConfirmButton>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )) : <Empty>발급된 비밀번호가 없습니다.</Empty>}
       </section>
+      {reissuing && <ReissueModal token={reissuing} onClose={() => setReissuing(null)} onDone={(t) => { setReissuing(null); setIssued([t]); load(); }} />}
       {issued && <IssuedPanel issued={issued} onClose={() => setIssued(null)} />}
     </div>
   );
 }
 
 /* ---------- 데이터 ---------- */
-function DataSettings() {
-  const { run, state, toast } = useApp();
-  const [issued, setIssued] = useState(null);
-  const [force, setForce] = useState(false);
+/** 기존 사이트 데이터 가져오기 버튼 (홈 빈 화면에서도 사용) */
+export function ImportButton({ force = false, label = 'import-data.json 선택', variant = 'primary' }) {
+  const { run, toast, setOverlay } = useApp();
   const importFile = async () => {
     const [file] = await pickFiles({ accept: '.json,application/json', multiple: false });
     if (!file) return;
@@ -254,9 +280,16 @@ function DataSettings() {
       toast('JSON 파일을 읽을 수 없습니다.', 'error');
       return;
     }
-    const r = await run(() => api.post('/admin/import', { ...data, force }), '가져오기를 마쳤습니다.');
-    if (r.tokens?.length) setIssued(r.tokens);
+    const r = await run(() => api.post('/admin/import', { ...data, force }), '기존 사이트 데이터를 가져왔습니다.');
+    // 가져오기 후 홈 화면이 바뀌어도 사라지지 않도록 앱 전역 창으로 띄움
+    if (r.tokens?.length) setOverlay(<IssuedPanel issued={r.tokens} onClose={() => setOverlay(null)} />);
   };
+  return <Button variant={force ? 'danger' : variant} onClick={importFile}>{label}</Button>;
+}
+
+function DataSettings() {
+  const { state } = useApp();
+  const [force, setForce] = useState(false);
   return (
     <div class="admin-sections">
       <section class="block">
@@ -266,18 +299,17 @@ function DataSettings() {
       </section>
       <section class="block">
         <header class="block-head"><h2>기존 사이트 데이터 가져오기</h2></header>
-        <p class="muted">Apps Script 시트에서 변환한 <code>import-data.json</code>을 올립니다. 접속 코드는 새로 발급되며 결과 화면에서 한 번만 보입니다.</p>
+        <p class="muted">Apps Script 시트에서 변환한 <code>import-data.json</code>을 올립니다. 팀·셋리스트·이미지·취합·투표·규약·공지가 들어오고, 비밀번호는 사람별로 새로 발급되어 결과 화면에서 한 번만 보입니다.</p>
         {state.teams.length > 0 && (
-          <label class="check"><input type="checkbox" checked={force} onChange={(e) => setForce(e.currentTarget.checked)} /> 기존 데이터 지우고 가져오기 (접속 코드는 유지)</label>
+          <label class="check"><input type="checkbox" checked={force} onChange={(e) => setForce(e.currentTarget.checked)} /> 기존 데이터 지우고 다시 가져오기 (발급된 비밀번호는 유지)</label>
         )}
-        <div class="row-actions"><Button variant={force ? 'danger' : 'primary'} onClick={importFile}>JSON 파일 선택</Button></div>
+        <div class="row-actions"><ImportButton force={force} /></div>
       </section>
-      {issued && <IssuedPanel issued={issued} onClose={() => setIssued(null)} />}
     </div>
   );
 }
 
-const TABS = { event: '공연 정보', teams: '팀', tokens: '접속 코드', data: '데이터' };
+const TABS = { event: '공연 정보', teams: '팀', tokens: '비밀번호', data: '데이터' };
 
 export function Admin({ tab = 'event' }) {
   const current = TABS[tab] ? tab : 'event';

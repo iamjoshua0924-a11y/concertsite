@@ -17,7 +17,7 @@ function CellEditor({ col, team, onClose }) {
       <div class="status-pick" role="radiogroup" aria-label="상태">
         {Object.entries(COLLECTION_STATUS).map(([k, v]) => (
           <button key={k} role="radio" aria-checked={status === k} class={cx(`status-opt status-${k}`, status === k && 'on')} onClick={() => setStatus(k)}>
-            <b aria-hidden="true">{v.glyph}</b>{v.label}
+            <i class="dot" aria-hidden="true" />{v.label}
           </button>
         ))}
       </div>

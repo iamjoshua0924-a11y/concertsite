@@ -174,11 +174,19 @@ def main():
     options = {}
     for o in sorted(rows(wb, 'PollOptions'), key=lambda r: float(r.get('sortOrder') or 0)):
         options.setdefault(s(o['pollId']), []).append(s(o['optionLabel']))
+    import datetime
+    today = datetime.date.today().isoformat()
+
+    def poll_due(p):
+        due = s(p.get('dueDate'))[:10]
+        # 기존 사이트는 마감일을 강제하지 않아 '진행중' 투표가 마감일을 넘긴 채 쓰이고 있음 → 마감일만 비움
+        return '' if (due and due < today and s(p.get('status')) != '마감') else due
+
     polls = [{
         'title': s(p['title']), 'description': s(p.get('description')),
         'targetTeamId': '' if s(p.get('targetTeamId')) in ('', 'all') else id_map.get(s(p['targetTeamId']), ''),
         'options': options.get(s(p['pollId']), []), 'anonymous': s(p.get('allowAnonymousVote')) == 'Y',
-        'dueDate': s(p.get('dueDate'))[:10], 'status': 'closed' if s(p.get('status')) == '마감' else 'open',
+        'dueDate': poll_due(p), 'status': 'closed' if s(p.get('status')) == '마감' else 'open',
         'createdBy': s(p.get('createdBy')), 'createdAt': s(p.get('createdAt')),
     } for p in rows(wb, 'Polls') if visible(p)]
 

@@ -11,6 +11,6 @@ const client = new MongoClient(mongo.getUri());
 await client.connect();
 const db = client.db('dev');
 await ensureIndexes(db);
-const config = { ...loadConfig(process.env), adminBootstrapToken: process.env.ADMIN_BOOTSTRAP_TOKEN || 'DEV00-ADMIN' };
+const config = { ...loadConfig(process.env), adminBootstrapToken: process.env.ADMIN_BOOTSTRAP_TOKEN || 'DEV00-ADMIN', sessionSecret: 'dev-only-secret-dev-only-secret-0000' };
 const app = createApp({ db, bucket: new GridFSBucket(db, { bucketName: 'files' }), config });
 app.listen(config.port, () => console.log(`http://localhost:${config.port}  (접속 코드: ${config.adminBootstrapToken})`));

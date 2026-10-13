@@ -1,8 +1,9 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { AppProvider, Link, navigate, useApp, usePath } from './app.jsx';
+import { AppProvider, clearCache, Link, navigate, useApp, usePath } from './app.jsx';
 import { api } from './api.js';
-import { cx } from './util.js';
+import { cx, myTodos } from './util.js';
+import { Rail } from './components/Rail.jsx';
 import { Login } from './pages/Login.jsx';
 import { Home } from './pages/Home.jsx';
 import { Teams } from './pages/Teams.jsx';
@@ -29,11 +30,13 @@ function Icon({ d }) {
 }
 
 function Shell({ children, path }) {
-  const { state, run } = useApp();
+  const { state, run, syncing } = useApp();
   const [menu, setMenu] = useState(false);
   useEffect(() => setMenu(false), [path]);
   const isAdmin = state.me.role === 'admin';
-  const logout = () => run(() => api.post('/auth/logout')).then(() => navigate('/', { replace: true }));
+  const logout = () => run(() => { clearCache(); return api.post('/auth/logout'); }).then(() => navigate('/', { replace: true }));
+  const pending = myTodos(state).filter((t) => t.kind !== 'team').length;
+  const showRail = !path.startsWith('/admin') && !path.startsWith('/rules');
   const moreActive = path.startsWith('/rules') || path.startsWith('/admin');
 
   return (
@@ -42,11 +45,15 @@ function Shell({ children, path }) {
         <Link href="/" class="brand">{state.event.title || 'JPOP 연합공연'}</Link>
         <nav class="topnav" aria-label="주 메뉴">
           {NAV.map((n) => (
-            <Link key={n.href} href={n.href} class={cx(n.match(path) && 'on')} aria-current={n.match(path) ? 'page' : undefined}>{n.label}</Link>
+            <Link key={n.href} href={n.href} class={cx(n.match(path) && 'on')} aria-current={n.match(path) ? 'page' : undefined}>
+              {n.label}
+              {n.href === '/progress' && pending > 0 && <b class="tab-badge">{pending}</b>}
+            </Link>
           ))}
           <Link href="/rules" class={cx(path.startsWith('/rules') && 'on')}>운영규약</Link>
           {isAdmin && <Link href="/admin" class={cx(path.startsWith('/admin') && 'on')}>관리</Link>}
         </nav>
+        {syncing && <span class="sync" role="status">동기화 중</span>}
         <div class="who">
           <span class="who-name">{state.me.label}</span>
           <span class="who-role">{state.me.roleLabel}</span>
@@ -54,13 +61,17 @@ function Shell({ children, path }) {
         </div>
       </header>
 
-      <main class="main" id="main">{children}</main>
+      <div class={cx('layout', showRail && 'with-rail')}>
+        <main class="main" id="main">{children}</main>
+        {showRail && <Rail />}
+      </div>
 
       <nav class="tabbar" aria-label="주 메뉴">
         {NAV.map((n) => (
           <Link key={n.href} href={n.href} class={cx(n.match(path) && 'on')} aria-current={n.match(path) ? 'page' : undefined}>
             <Icon d={n.icon} />
             <span>{n.label}</span>
+            {n.href === '/progress' && pending > 0 && <b class="tab-badge" aria-label={`할 일 ${pending}개`}>{pending}</b>}
           </Link>
         ))}
         <button class={cx(moreActive && 'on')} onClick={() => setMenu((m) => !m)} aria-expanded={menu}>
