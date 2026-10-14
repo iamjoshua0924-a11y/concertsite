@@ -632,3 +632,7 @@ body.team-tinted .team-tab:not(.on) { background: color-mix(in srgb, var(--team)
 .team-page .btn-primary { background: color-mix(in srgb, var(--team) 85%, #1c1d22); }
 .team-page .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--team) 70%, #1c1d22); }
 .team-page .gallery .thumb { border-color: color-mix(in srgb, var(--team) 50%, var(--ink)); }
+.opt-row { display: grid; grid-template-columns: 1fr auto 34px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.opt-row-votes { font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--rule-soft); padding: 2px 8px; border-radius: 999px; }
+.poll-by { font-size: 12px; color: var(--ink-3); }
+.pw-delete { flex-wrap: wrap; justify-content: flex-end; }

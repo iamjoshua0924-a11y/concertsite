@@ -103,6 +103,8 @@ export async function buildState(db, session) {
       isOpen: pollIsOpen(p),
       createdBy: p.createdBy || '',
       createdAt: p.createdAt,
+      updatedAt: p.updatedAt || '',
+      canEdit: admin || (p.createdByTokenId && p.createdByTokenId === session.tokenId),
       myVote: mine ? { optionId: mine.optionId, comment: mine.comment || '', name: mine.voterName || '' } : null,
       // 익명이면 이름·팀 모두 숨김. 결과 비공개 상태면 명단도 숨김
       voters: !p.anonymous && visible
@@ -163,6 +165,10 @@ export async function buildState(db, session) {
       content: p.content,
       author: p.author || '',
       createdAt: p.createdAt,
+      updatedAt: p.updatedAt || '',
+      // 수정은 글쓴이만(같은 비밀번호로 쓴 글이거나 글 비밀번호를 아는 경우). 삭제는 총괄대표도 가능
+      canEdit: Boolean(p.createdByTokenId && p.createdByTokenId === session.tokenId),
+      hasPassword: Boolean(p.passwordHash),
       canDelete: ownerOf(p),
     })),
     activity: activity.map((a) => ({ type: a.type, text: a.text, teamId: a.teamId || '', href: a.href || '', at: a.at })),

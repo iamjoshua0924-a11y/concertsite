@@ -151,6 +151,22 @@ export function boardRoutes(router, { db, bucket }) {
     res.json({ ok: true, id: doc._id });
   });
 
+  // 글 수정: 글쓴이 본인(같은 로그인)이거나 글 비밀번호를 아는 경우
+  router.patch('/posts/:id', requireRole('member'), async (req, res) => {
+    const doc = await posts.findOne({ _id: req.params.id, visible: { $ne: false } });
+    if (!doc) throw notFound('게시글을 찾을 수 없습니다.');
+    const isAuthor = doc.createdByTokenId && doc.createdByTokenId === req.session.tokenId;
+    if (!isAuthor && !scryptVerify(String(req.body?.password || ''), doc.passwordHash)) {
+      throw forbidden(doc.passwordHash ? '비밀번호가 일치하지 않습니다.' : '글쓴이만 수정할 수 있습니다.');
+    }
+    const b = req.body || {};
+    const set = { updatedAt: nowIso() };
+    if ('title' in b) set.title = text(b.title, { name: '제목', max: 120, required: true });
+    if ('content' in b) set.content = text(b.content, { name: '내용', max: 10000, required: true });
+    await posts.updateOne({ _id: doc._id }, { $set: set });
+    res.json({ ok: true });
+  });
+
   // 같은 접속 코드로 쓴 글은 바로 삭제, 다른 기기·코드면 비밀번호 필요
   router.delete('/posts/:id', requireRole('member'), async (req, res) => {
     const doc = await posts.findOne({ _id: req.params.id });

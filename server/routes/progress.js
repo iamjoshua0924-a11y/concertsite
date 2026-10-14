@@ -74,35 +74,61 @@ export function progressRoutes(router, { db }) {
   });
 
   /* ---------- 투표 ---------- */
-  router.post('/polls', requireRole('admin'), async (req, res) => {
+  /** 투표 작성자 또는 총괄대표만 */
+  async function editablePoll(req) {
+    const poll = await polls.findOne({ _id: req.params.id });
+    if (!poll) throw notFound('투표를 찾을 수 없습니다.');
+    if (!isAdmin(req.session) && poll.createdByTokenId !== req.session.tokenId) {
+      throw forbidden('투표를 만든 사람 또는 총괄대표만 수정할 수 있습니다.');
+    }
+    return poll;
+  }
+
+  function optionInputs(list) {
+    const arr = (Array.isArray(list) ? list : [])
+      .map((o) => (typeof o === 'string' ? { label: o } : o || {}))
+      .map((o) => ({ id: typeof o.id === 'string' ? o.id : '', label: text(o.label, { name: '선택지', max: 100 }) }))
+      .filter((o) => o.label);
+    if (arr.length < 2) throw badRequest('선택지는 2개 이상 필요합니다.');
+    if (arr.length > 20) throw badRequest('선택지는 20개까지 가능합니다.');
+    return arr;
+  }
+
+  // 팀 대표 이상이 투표를 만들 수 있다
+  router.post('/polls', requireRole('leader'), async (req, res) => {
     const b = req.body || {};
-    const labels = (Array.isArray(b.options) ? b.options : [])
-      .map((o) => text(typeof o === 'string' ? o : o?.label, { name: '선택지', max: 100 }))
-      .filter(Boolean);
-    if (labels.length < 2) throw badRequest('선택지는 2개 이상 필요합니다.');
-    if (labels.length > 20) throw badRequest('선택지는 20개까지 가능합니다.');
+    const options = optionInputs(b.options);
     const targetTeamId = b.targetTeamId ? (await validTeamIds([b.targetTeamId]))[0] || '' : '';
     const doc = {
       _id: newId('poll'),
       title: text(b.title, { name: '투표 제목', max: 120, required: true }),
       description: text(b.description, { name: '설명', max: 2000 }),
       targetTeamId,
-      options: labels.map((label) => ({ id: newId('opt'), label })),
+      options: options.map((o) => ({ id: newId('opt'), label: o.label })),
       anonymous: Boolean(b.anonymous),
       voteScope: b.voteScope === 'team' ? 'team' : 'person',
       showResults: b.showResults === 'afterClose' ? 'afterClose' : 'always',
       dueDate: optionalDate(b.dueDate, '마감일'),
       status: 'open',
       createdBy: req.session.label,
+      createdByTokenId: req.session.tokenId,
       createdAt: nowIso(),
     };
     await polls.insertOne(doc);
-    await logActivity(db, { type: 'poll', text: `새 투표: ${doc.title}`, href: '/polls' });
+    await logActivity(db, { type: 'poll', text: `새 투표: ${doc.title}`, href: `/polls#${doc._id}` });
     res.json({ ok: true, id: doc._id });
   });
 
-  router.patch('/polls/:id', requireRole('admin'), async (req, res) => {
+  /**
+   * 진행 중 수정. 표가 이미 있으면:
+   *  - 익명 → 실명 전환 금지 (기존 투표자 노출)
+   *  - 1인1표 ↔ 팀당1표 전환 금지 (집계 기준이 바뀜)
+   *  - 삭제된 선택지의 표는 함께 삭제
+   */
+  router.patch('/polls/:id', requireRole('member'), async (req, res) => {
+    const poll = await editablePoll(req);
     const b = req.body || {};
+    const voteCount = await votes.countDocuments({ pollId: poll._id });
     const set = {};
     if ('status' in b) {
       if (!['open', 'closed'].includes(b.status)) throw badRequest('상태 값이 올바르지 않습니다.');
@@ -111,14 +137,40 @@ export function progressRoutes(router, { db }) {
     if ('dueDate' in b) set.dueDate = optionalDate(b.dueDate, '마감일');
     if ('title' in b) set.title = text(b.title, { name: '투표 제목', max: 120, required: true });
     if ('description' in b) set.description = text(b.description, { name: '설명', max: 2000 });
-    const r = await polls.updateOne({ _id: req.params.id }, { $set: set });
-    if (!r.matchedCount) throw notFound();
-    res.json({ ok: true });
+    if ('targetTeamId' in b) set.targetTeamId = b.targetTeamId ? (await validTeamIds([b.targetTeamId]))[0] || '' : '';
+    if ('showResults' in b) set.showResults = b.showResults === 'afterClose' ? 'afterClose' : 'always';
+    if ('anonymous' in b) {
+      const next = Boolean(b.anonymous);
+      if (poll.anonymous && !next && voteCount > 0) throw badRequest('이미 표가 있는 익명 투표는 실명으로 바꿀 수 없습니다.');
+      set.anonymous = next;
+    }
+    if ('voteScope' in b) {
+      const next = b.voteScope === 'team' ? 'team' : 'person';
+      if (next !== (poll.voteScope || 'person') && voteCount > 0) throw badRequest('이미 표가 있으면 투표 단위(1인/팀)를 바꿀 수 없습니다.');
+      set.voteScope = next;
+    }
+    let removedIds = [];
+    if ('options' in b) {
+      const known = new Set(poll.options.map((o) => o.id));
+      const next = optionInputs(b.options).map((o) => ({ id: known.has(o.id) ? o.id : newId('opt'), label: o.label }));
+      const keep = new Set(next.map((o) => o.id));
+      removedIds = poll.options.filter((o) => !keep.has(o.id)).map((o) => o.id);
+      set.options = next;
+    }
+    set.updatedAt = nowIso();
+    await polls.updateOne({ _id: poll._id }, { $set: set });
+    let removedVotes = 0;
+    if (removedIds.length) removedVotes = (await votes.deleteMany({ pollId: poll._id, optionId: { $in: removedIds } })).deletedCount;
+    if ('options' in b || 'title' in b || 'description' in b) {
+      await logActivity(db, { type: 'poll', text: `투표 내용 수정: ${set.title || poll.title}`, href: `/polls#${poll._id}` });
+    }
+    res.json({ ok: true, removedVotes });
   });
 
-  router.delete('/polls/:id', requireRole('admin'), async (req, res) => {
-    await polls.deleteOne({ _id: req.params.id });
-    await votes.deleteMany({ pollId: req.params.id });
+  router.delete('/polls/:id', requireRole('member'), async (req, res) => {
+    const poll = await editablePoll(req);
+    await polls.deleteOne({ _id: poll._id });
+    await votes.deleteMany({ pollId: poll._id });
     res.json({ ok: true });
   });
 

@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import { api } from '../api.js';
 import { Link, useApp } from '../app.jsx';
 import { Button, ConfirmButton, DueBadge, Empty, Field, Modal, PageHead, RichText, TeamChip, useForm } from '../components/ui.jsx';
-import { cx, daysUntil, teamStyle } from '../util.js';
+import { cx, daysUntil, relativeTime, teamStyle } from '../util.js';
 
 const NAME_KEY = 'cs_voter_name';
 function savedName(fallback) {
@@ -15,6 +15,7 @@ function PollCard({ poll, teams, me }) {
   const [name, setName] = useState(poll.myVote?.name || savedName(me.label));
   const [comment, setComment] = useState(poll.myVote?.comment || '');
   const [showVoters, setShowVoters] = useState(false);
+  const [editing, setEditing] = useState(false);
   const isAdmin = me.role === 'admin';
   const target = teams.find((t) => t.id === poll.targetTeamId);
   const eligible = !poll.targetTeamId || isAdmin || me.teamId === poll.targetTeamId;
@@ -38,6 +39,7 @@ function PollCard({ poll, teams, me }) {
         <div>
           <h2>{poll.title}</h2>
           <p class="poll-rules">{rules}</p>
+          {(poll.createdBy || poll.updatedAt) && <p class="poll-by">{poll.createdBy && `${poll.createdBy} 게시`}{poll.updatedAt && `${poll.createdBy ? ', ' : ''}${relativeTime(poll.updatedAt)} 수정`}</p>}
         </div>
         <div class="poll-badges">
           {target && <TeamChip team={target} small />}
@@ -83,8 +85,9 @@ function PollCard({ poll, teams, me }) {
       <footer class="poll-foot">
         <span>{poll.resultsVisible ? `총 ${poll.totalVotes}표` : `${poll.totalVotes}명 참여, 결과는 마감 후 공개`}</span>
         {poll.voters.length > 0 && <button class="link-btn" onClick={() => setShowVoters((v) => !v)}>{showVoters ? '명단 접기' : '누가 뭘 골랐나'}</button>}
-        {isAdmin && (
+        {poll.canEdit && (
           <span class="poll-admin">
+            <button class="link-btn" onClick={() => setEditing(true)}>수정</button>
             <button class="link-btn" onClick={() => run(() => api.patch(`/polls/${poll.id}`, { status: poll.status === 'closed' ? 'open' : 'closed' }), poll.status === 'closed' ? '다시 열었습니다.' : '마감했습니다.')}>
               {poll.status === 'closed' ? '다시 열기' : '마감'}
             </button>
@@ -104,29 +107,59 @@ function PollCard({ poll, teams, me }) {
           ))}
         </ul>
       )}
+      {editing && <PollForm teams={teams} poll={poll} onClose={() => setEditing(false)} />}
     </article>
   );
 }
 
-function PollForm({ teams, onClose }) {
+/** 투표 만들기/수정. 수정 시 선택지 id를 유지해 기존 표를 보존한다 */
+function PollForm({ teams, poll, onClose }) {
   const { run } = useApp();
-  const f = useForm({ title: '', description: '', options: '', dueDate: '', targetTeamId: '', anonymous: false, voteScope: 'person', showResults: 'always' });
-  const save = () => run(() => api.post('/polls', { ...f.values, options: f.values.options.split('\n') }), '투표를 만들었습니다.').then(onClose);
+  const editing = Boolean(poll);
+  const hasVotes = editing && poll.totalVotes > 0;
+  const f = useForm({
+    title: poll?.title || '', description: poll?.description || '', dueDate: poll?.dueDate || '',
+    targetTeamId: poll?.targetTeamId || '', anonymous: poll?.anonymous || false,
+    voteScope: poll?.voteScope || 'person', showResults: poll?.showResults || 'always',
+  });
+  const [options, setOptions] = useState(poll ? poll.options.map((o) => ({ id: o.id, label: o.label, votes: o.votes })) : [{ label: '' }, { label: '' }]);
+  const setOpt = (i, label) => setOptions((o) => o.map((x, idx) => (idx === i ? { ...x, label } : x)));
+  const removedWithVotes = editing
+    ? poll.options.filter((o) => !options.some((x) => x.id === o.id)).reduce((n, o) => n + (o.votes || 0), 0)
+    : 0;
+  const body = () => ({ ...f.values, options: options.filter((o) => o.label.trim()).map((o) => ({ id: o.id, label: o.label })) });
+  const save = () => run(
+    () => (editing ? api.patch(`/polls/${poll.id}`, body()) : api.post('/polls', body())),
+    editing ? '투표를 수정했습니다.' : '투표를 만들었습니다.',
+  ).then(onClose);
+
   return (
-    <Modal title="새 투표" onClose={onClose}>
+    <Modal title={editing ? '투표 수정' : '새 투표'} onClose={onClose}>
+      {hasVotes && <p class="modal-lead">이미 {poll.totalVotes}표가 들어온 투표입니다. 선택지 이름을 바꾸면 그 선택지의 표는 그대로 유지됩니다.</p>}
       <div class="form-grid">
         <Field label="질문" wide><input placeholder="예: 리허설 시작 시간" {...f.bind('title')} /></Field>
         <Field label="설명" wide><textarea rows={2} {...f.bind('description')} /></Field>
-        <Field label="선택지" hint="한 줄에 하나씩, 2개 이상" wide><textarea rows={4} placeholder={'13:00\n14:00\n15:00'} {...f.bind('options')} /></Field>
-        <Field label="마감일"><input type="date" {...f.bind('dueDate')} /></Field>
+        <fieldset class="field field-wide">
+          <legend class="field-label">선택지</legend>
+          {options.map((o, i) => (
+            <div key={o.id || `new-${i}`} class="opt-row">
+              <input aria-label={`선택지 ${i + 1}`} placeholder={`선택지 ${i + 1}`} value={o.label} onInput={(e) => setOpt(i, e.currentTarget.value)} />
+              {o.votes ? <span class="opt-row-votes">{o.votes}표</span> : null}
+              <button class="icon-btn" aria-label="선택지 삭제" disabled={options.length <= 2} onClick={() => setOptions(options.filter((_, idx) => idx !== i))}>✕</button>
+            </div>
+          ))}
+          <Button small variant="quiet" disabled={options.length >= 20} onClick={() => setOptions([...options, { label: '' }])}>선택지 추가</Button>
+          {removedWithVotes > 0 && <p class="form-error">삭제한 선택지의 표 {removedWithVotes}개도 함께 지워집니다.</p>}
+        </fieldset>
+        <Field label="마감일" hint={editing ? '비우면 마감일 없음' : null}><input type="date" {...f.bind('dueDate')} /></Field>
         <Field label="대상">
           <select {...f.bind('targetTeamId')}>
             <option value="">전체 팀</option>
             {teams.map((t) => <option key={t.id} value={t.id}>{t.name}만</option>)}
           </select>
         </Field>
-        <Field label="투표 단위">
-          <select {...f.bind('voteScope')}>
+        <Field label="투표 단위" hint={hasVotes ? '표가 있어 바꿀 수 없습니다.' : null}>
+          <select {...f.bind('voteScope')} disabled={hasVotes}>
             <option value="person">1인 1표</option>
             <option value="team">팀당 1표 (팀원 누구나, 마지막 선택이 팀 의견)</option>
           </select>
@@ -137,11 +170,14 @@ function PollForm({ teams, onClose }) {
             <option value="afterClose">마감 후 공개</option>
           </select>
         </Field>
-        <label class="check field-wide"><input type="checkbox" {...f.bind('anonymous', 'checked')} /> 익명 투표 (이름과 팀을 아무에게도 표시하지 않음)</label>
+        <label class="check field-wide">
+          <input type="checkbox" {...f.bind('anonymous', 'checked')} disabled={hasVotes && poll.anonymous} />
+          익명 투표 (이름과 팀을 아무에게도 표시하지 않음){hasVotes && poll.anonymous ? ', 표가 있어 실명으로 바꿀 수 없음' : ''}
+        </label>
       </div>
       <div class="row-actions">
         <Button variant="quiet" onClick={onClose}>취소</Button>
-        <Button variant="primary" onClick={save}>만들기</Button>
+        <Button variant="primary" onClick={save}>{editing ? '저장' : '만들기'}</Button>
       </div>
     </Modal>
   );
@@ -160,7 +196,7 @@ export function Polls() {
       <PageHead
         title="진행"
         sub="마감 전까지 언제든 선택을 바꿀 수 있습니다."
-        actions={me.role === 'admin' && <Button variant="primary" onClick={() => setForm(true)}>새 투표</Button>}
+        actions={me.can.editOwnTeam && <Button variant="primary" onClick={() => setForm(true)}>새 투표</Button>}
       />
       <nav class="subnav"><Link href="/progress">제출 현황</Link><Link href="/polls" class="on" aria-current="page">투표</Link></nav>
       {polls.some((p) => p.targetTeamId) && (
@@ -172,7 +208,7 @@ export function Polls() {
         </div>
       )}
       {open.length ? (
-        <div class="poll-list">{open.map((p) => <PollCard key={p.id + (p.myVote?.optionId || '')} poll={p} teams={teams} me={me} />)}</div>
+        <div class="poll-list">{open.map((p) => <PollCard key={p.id + (p.myVote?.optionId || '') + p.updatedAt} poll={p} teams={teams} me={me} />)}</div>
       ) : (
         <Empty>진행 중인 투표가 없습니다.</Empty>
       )}

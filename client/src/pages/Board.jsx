@@ -181,46 +181,66 @@ function QuestionItem({ q, open, onToggle, teams, canAnswer }) {
 }
 
 /* ---------- 자유게시판 ---------- */
-function PostForm({ me, onClose }) {
+function PostForm({ me, post, onClose }) {
   const { run } = useApp();
-  const f = useForm({ title: '', content: '', author: me.label, password: '' });
-  const save = () => run(() => api.post('/posts', f.values), '글을 올렸습니다.').then(onClose);
+  const editing = Boolean(post);
+  const f = useForm({ title: post?.title || '', content: post?.content || '', author: me.label, password: post?.password || '' });
+  const save = () => run(
+    () => (editing ? api.patch(`/posts/${post.id}`, { title: f.values.title, content: f.values.content, password: post.password || '' }) : api.post('/posts', f.values)),
+    editing ? '글을 수정했습니다.' : '글을 올렸습니다.',
+  ).then(onClose);
   return (
-    <Modal title="글쓰기" onClose={onClose}>
+    <Modal title={editing ? '글 수정' : '글쓰기'} onClose={onClose}>
       <div class="form-grid">
         <Field label="제목" wide><input {...f.bind('title')} /></Field>
-        <Field label="내용" wide><textarea rows={6} {...f.bind('content')} /></Field>
-        <Field label="작성자"><input {...f.bind('author')} /></Field>
-        <Field label="삭제용 비밀번호" hint="다른 기기에서 지울 때만 필요합니다."><input type="password" autocomplete="new-password" {...f.bind('password')} /></Field>
+        <Field label="내용" wide><textarea rows={8} {...f.bind('content')} /></Field>
+        {!editing && (
+          <>
+            <Field label="작성자"><input {...f.bind('author')} /></Field>
+            <Field label="글 비밀번호 (선택)" hint="다른 기기에서 고치거나 지울 때 필요합니다."><input type="password" autocomplete="new-password" {...f.bind('password')} /></Field>
+          </>
+        )}
       </div>
       <div class="row-actions">
         <Button variant="quiet" onClick={onClose}>취소</Button>
-        <Button variant="primary" onClick={save}>올리기</Button>
+        <Button variant="primary" onClick={save}>{editing ? '저장' : '올리기'}</Button>
       </div>
     </Modal>
   );
 }
 
-function PostItem({ p, open, onToggle }) {
+function PostItem({ p, open, onToggle, onEdit }) {
   const { run } = useApp();
   const [pw, setPw] = useState('');
   return (
     <li class={cx('entry', open && 'open')} id={p.id}>
       <button class="entry-head" onClick={onToggle} aria-expanded={open}>
         <span class="entry-title">{p.title}</span>
-        <span class="entry-meta">{p.author}, {relativeTime(p.createdAt)}</span>
+        <span class="entry-meta">{p.author}, {relativeTime(p.createdAt)}{p.updatedAt && <span class="pill">수정됨</span>}</span>
       </button>
       {open && (
         <div class="entry-body">
           <RichText text={p.content} />
           <footer class="entry-foot">
             <span />
-            {p.canDelete ? (
-              <ConfirmButton onConfirm={() => run(() => api.del(`/posts/${p.id}`), '삭제했습니다.')}>삭제</ConfirmButton>
+            {p.canEdit ? (
+              <span class="row-actions">
+                <Button small variant="quiet" onClick={() => onEdit({ ...p })}>수정</Button>
+                <ConfirmButton onConfirm={() => run(() => api.del(`/posts/${p.id}`), '삭제했습니다.')}>삭제</ConfirmButton>
+              </span>
             ) : (
               <span class="pw-delete">
-                <input type="password" placeholder="비밀번호" aria-label="삭제용 비밀번호" value={pw} onInput={(e) => setPw(e.currentTarget.value)} />
-                <Button small variant="quiet" disabled={!pw} onClick={() => run(() => api.del(`/posts/${p.id}`, { password: pw }), '삭제했습니다.')}>삭제</Button>
+                {p.hasPassword && (
+                  <>
+                    <input type="password" placeholder="글 비밀번호" aria-label="글 비밀번호" value={pw} onInput={(e) => setPw(e.currentTarget.value)} />
+                    <Button small variant="quiet" disabled={!pw} onClick={() => onEdit({ ...p, password: pw })}>수정</Button>
+                  </>
+                )}
+                {p.canDelete ? (
+                  <ConfirmButton onConfirm={() => run(() => api.del(`/posts/${p.id}`), '삭제했습니다.')}>삭제</ConfirmButton>
+                ) : p.hasPassword ? (
+                  <Button small variant="quiet" disabled={!pw} onClick={() => run(() => api.del(`/posts/${p.id}`, { password: pw }), '삭제했습니다.')}>삭제</Button>
+                ) : null}
               </span>
             )}
           </footer>
@@ -266,12 +286,12 @@ export function Board({ tab = 'meetings', openId }) {
         <ul class="entries">{questions.map((q) => <QuestionItem key={q.id} q={q} open={open === q.id} onToggle={() => toggle(q.id)} teams={teams} canAnswer={me.can.answerQuestions} />)}</ul>
       ) : <Empty>총괄대표에게 물어볼 것이 있으면 여기에 남겨주세요.</Empty>)}
       {current === 'posts' && (posts.length ? (
-        <ul class="entries">{posts.map((p) => <PostItem key={p.id} p={p} open={open === p.id} onToggle={() => toggle(p.id)} />)}</ul>
+        <ul class="entries">{posts.map((p) => <PostItem key={p.id} p={p} open={open === p.id} onToggle={() => toggle(p.id)} onEdit={(post) => setCompose({ kind: 'posts', post })} />)}</ul>
       ) : <Empty>아직 글이 없습니다.</Empty>)}
 
       {compose?.kind === 'meeting' && <MeetingForm meeting={compose.meeting} me={me} onClose={() => setCompose(null)} />}
       {compose?.kind === 'questions' && <QuestionForm me={me} onClose={() => setCompose(null)} />}
-      {compose?.kind === 'posts' && <PostForm me={me} onClose={() => setCompose(null)} />}
+      {compose?.kind === 'posts' && <PostForm me={me} post={compose.post} onClose={() => setCompose(null)} />}
     </div>
   );
 }

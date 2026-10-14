@@ -172,6 +172,49 @@ test('투표: 팀당 1표 + 마감 후 결과 공개', async () => {
   assert.equal(a.options[1].votes, 1);
 });
 
+test('투표 수정: 만든 사람·총괄대표만, 익명→실명 금지, 선택지 삭제 시 표 정리', async () => {
+  assert.equal((await member.post('/api/polls', { title: 'x', options: ['a', 'b'] })).status, 403, 'member는 투표 생성 불가');
+  const c = await leader.post('/api/polls', { title: '뒤풀이 장소', options: ['홍대', '합정'], anonymous: true });
+  assert.equal(c.status, 200);
+  const id = c.data.id;
+  let poll = (await leader.get('/api/state')).data.polls.find((p) => p.id === id);
+  assert.equal(poll.canEdit, true);
+  assert.equal((await member.get('/api/state')).data.polls.find((p) => p.id === id).canEdit, false);
+  await member.put(`/api/polls/${id}/vote`, { optionId: poll.options[1].id });
+
+  assert.equal((await otherLeader.patch(`/api/polls/${id}`, { title: 'hack' })).status, 403, '다른 팀 대표 수정 불가');
+  assert.equal((await leader.patch(`/api/polls/${id}`, { anonymous: false })).status, 400, '표 있는 익명 투표는 실명 전환 금지');
+  assert.equal((await leader.patch(`/api/polls/${id}`, { voteScope: 'team' })).status, 400, '표 있으면 단위 변경 금지');
+
+  // 선택지 이름 변경 + 추가 + 표 있는 선택지 삭제
+  const r = await leader.patch(`/api/polls/${id}`, {
+    title: '뒤풀이 장소 (수정)',
+    options: [{ id: poll.options[0].id, label: '홍대입구' }, { label: '신촌' }],
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.removedVotes, 1);
+  poll = (await admin.get('/api/state')).data.polls.find((p) => p.id === id);
+  assert.deepEqual(poll.options.map((o) => o.label), ['홍대입구', '신촌']);
+  assert.equal(poll.totalVotes, 0);
+  assert.equal((await admin.patch(`/api/polls/${id}`, { description: '총괄대표도 수정 가능' })).status, 200);
+  assert.equal((await otherLeader.del(`/api/polls/${id}`)).status, 403);
+  assert.equal((await leader.del(`/api/polls/${id}`)).status, 200);
+});
+
+test('자유게시판 수정: 글쓴이 또는 글 비밀번호만', async () => {
+  const r = await member.post('/api/posts', { title: '원래 제목', content: '원래 내용', password: 'pw5678' });
+  const id = r.data.id;
+  assert.equal((await member.get('/api/state')).data.posts.find((p) => p.id === id).canEdit, true);
+  assert.equal((await member.patch(`/api/posts/${id}`, { title: '고친 제목', content: '고친 내용' })).status, 200);
+  assert.equal((await leader.patch(`/api/posts/${id}`, { content: 'hack' })).status, 403, '다른 사람 수정 불가');
+  assert.equal((await admin.patch(`/api/posts/${id}`, { content: 'admin edit' })).status, 403, '총괄대표도 남의 글 수정 불가');
+  assert.equal((await leader.patch(`/api/posts/${id}`, { content: '비번으로 수정', password: 'pw5678' })).status, 200);
+  const p = (await leader.get('/api/state')).data.posts.find((x) => x.id === id);
+  assert.equal(p.title, '고친 제목');
+  assert.equal(p.content, '비번으로 수정');
+  assert.ok(p.updatedAt);
+});
+
 test('게시판: 비밀번호 삭제, 작성자 바로 삭제, 해시 미노출', async () => {
   const r = await member.post('/api/posts', { title: '안녕', content: '내용', password: 'pw1234' });
   const s = (await leader.get('/api/state')).data;
