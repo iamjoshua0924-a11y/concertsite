@@ -255,6 +255,23 @@ test('이미지 업로드(GridFS) → 로그인 사용자만 조회', async () =
   assert.equal((await leader.post('/api/teams/bdh/images', bad)).status, 400);
 });
 
+test('자유게시판 이미지 첨부, 연락처 자유 텍스트', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const fd = new FormData();
+  fd.append('files', new Blob([png], { type: 'image/png' }), '합주사진.png');
+  const up = await member.post('/api/files', fd);
+  assert.equal(up.status, 200);
+  const r = await member.post('/api/posts', { title: '사진', content: '합주 사진', attachments: up.data.files });
+  const post = (await leader.get('/api/state')).data.posts.find((p) => p.id === r.data.id);
+  assert.equal(post.attachments.length, 1);
+  assert.equal(post.attachments[0].type, 'image/png');
+  assert.equal((await member.patch(`/api/posts/${post.id}`, { attachments: [] })).status, 200);
+  assert.equal((await leader.get('/api/state')).data.posts.find((p) => p.id === r.data.id).attachments.length, 0);
+  const contact = '010-1234-5678\n디스코드: bdh_leader#0001';
+  assert.equal((await leader.patch('/api/teams/bdh', { leaderContact: contact })).status, 200);
+  assert.equal((await otherLeader.get('/api/state')).data.teams.find((t) => t.id === 'bdh').leaderContact, contact);
+});
+
 test('토큰 재발급 시 기존 세션 무효화, 비활성화 즉시 반영', async () => {
   const r = await admin.post(`/api/admin/tokens/${tokens.otherLeader.id}/reissue`);
   assert.equal(r.status, 200);

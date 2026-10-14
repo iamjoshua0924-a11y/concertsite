@@ -142,6 +142,7 @@ export function boardRoutes(router, { db, bucket }) {
       content: text(b.content, { name: '내용', max: 10000, required: true }),
       author: text(b.author || req.session.label, { name: '작성자', max: 40 }),
       passwordHash: password ? scryptHash(password) : '',
+      attachments: await resolveAttachments(bucket, b.attachments),
       visible: true,
       createdByTokenId: req.session.tokenId,
       createdAt: nowIso(),
@@ -163,6 +164,7 @@ export function boardRoutes(router, { db, bucket }) {
     const set = { updatedAt: nowIso() };
     if ('title' in b) set.title = text(b.title, { name: '제목', max: 120, required: true });
     if ('content' in b) set.content = text(b.content, { name: '내용', max: 10000, required: true });
+    if ('attachments' in b) set.attachments = await resolveAttachments(bucket, b.attachments);
     await posts.updateOne({ _id: doc._id }, { $set: set });
     res.json({ ok: true });
   });

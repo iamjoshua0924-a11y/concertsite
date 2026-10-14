@@ -27,7 +27,7 @@ function TeamInfoEditor({ team, onClose }) {
         <Field label="구성 악기" wide><input placeholder="보컬 2, 기타, 베이스, 드럼, 건반" {...f.bind('instruments')} /></Field>
         <Field label="SNS 링크" wide><input type="url" placeholder="https://" {...f.bind('snsUrl')} /></Field>
         <Field label="대표자 이름"><input {...f.bind('leaderName')} /></Field>
-        <Field label="대표자 연락처" hint="팀 대표와 총괄대표, 같은 팀에게만 보입니다."><input type="tel" {...f.bind('leaderContact')} /></Field>
+        <Field label="대표자 연락처" hint="전화번호, 디스코드 아이디 등 자유롭게. 팀 대표·총괄대표·같은 팀에게만 보입니다." wide><textarea rows={2} placeholder={'010-0000-0000\n디스코드: example_id'} {...f.bind('leaderContact')} /></Field>
       </div>
       <div class="row-actions">
         <Button variant="quiet" onClick={onClose}>취소</Button>
@@ -274,7 +274,7 @@ export function Teams({ teamId }) {
         <div><dt>인원</dt><dd>{team.memberCount ? `${team.memberCount}명` : '–'}</dd></div>
         <div><dt>구성 악기</dt><dd>{team.instruments || '–'}</dd></div>
         <div><dt>대표자</dt><dd>{team.leaderName || '–'}</dd></div>
-        <div><dt>연락처</dt><dd>{team.leaderContact ? <a href={`tel:${team.leaderContact.replace(/[^\d+]/g, '')}`}>{team.leaderContact}</a> : team.contactHidden ? <span class="muted">대표자에게만 공개</span> : '–'}</dd></div>
+        <div><dt>연락처</dt><dd>{team.leaderContact ? <span class="contact-text">{team.leaderContact}</span> : team.contactHidden ? <span class="muted">대표자에게만 공개</span> : '–'}</dd></div>
         {team.snsUrl && <div><dt>SNS</dt><dd><a href={team.snsUrl} target="_blank" rel="noopener">{team.snsUrl.replace(/^https?:\/\/(www\.)?/, '')}</a></dd></div>}
       </dl>
 

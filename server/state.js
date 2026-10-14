@@ -169,6 +169,7 @@ export async function buildState(db, session) {
       // 수정은 글쓴이만(같은 비밀번호로 쓴 글이거나 글 비밀번호를 아는 경우). 삭제는 총괄대표도 가능
       canEdit: Boolean(p.createdByTokenId && p.createdByTokenId === session.tokenId),
       hasPassword: Boolean(p.passwordHash),
+      attachments: p.attachments || [],
       canDelete: ownerOf(p),
     })),
     activity: activity.map((a) => ({ type: a.type, text: a.text, teamId: a.teamId || '', href: a.href || '', at: a.at })),

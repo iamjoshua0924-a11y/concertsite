@@ -636,3 +636,23 @@ body.team-tinted .team-tab:not(.on) { background: color-mix(in srgb, var(--team)
 .opt-row-votes { font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--rule-soft); padding: 2px 8px; border-radius: 999px; }
 .poll-by { font-size: 12px; color: var(--ink-3); }
 .pw-delete { flex-wrap: wrap; justify-content: flex-end; }
+
+/* ===== 연락처 일반 텍스트 ===== */
+.contact-text { white-space: pre-wrap; }
+
+/* ===== 첨부 이미지 ===== */
+.att { display: grid; gap: 10px; }
+.att-thumbs { display: flex; gap: 6px; margin: -4px 0 12px; }
+.att-thumb { position: relative; width: 64px; height: 64px; padding: 0; border: 1px solid var(--rule); border-radius: var(--radius-sm); overflow: hidden; background: var(--rule-soft); cursor: zoom-in; flex: none; }
+.att-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.att-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(20, 20, 26, 0.55); color: #fff; font-weight: 800; }
+.att-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.att-images.single { grid-template-columns: 1fr; }
+.att-image { padding: 0; border: 1px solid var(--rule); border-radius: var(--radius-sm); overflow: hidden; background: var(--rule-soft); cursor: zoom-in; aspect-ratio: 1; }
+.att-image img { width: 100%; height: 100%; object-fit: cover; }
+.att-images.single .att-image { aspect-ratio: auto; justify-self: start; max-width: 100%; }
+.att-images.single .att-image img { width: auto; max-width: 100%; height: auto; max-height: min(60vh, 520px); object-fit: contain; }
+.lightbox-top { position: absolute; top: 12px; right: 12px; display: flex; gap: 10px; align-items: center; }
+.lightbox-top a { color: #fff; font-weight: 700; font-size: 14px; padding: 6px 12px; border: 1.5px solid rgba(255,255,255,.7); border-radius: 999px; text-decoration: none; }
+.lightbox-top .icon-btn { color: #fff; font-size: 22px; width: 40px; height: 40px; }
+.lightbox img { touch-action: pan-y; }

@@ -170,7 +170,7 @@ export function adminRoutes(router, { db, bucket, sessions, config }) {
         memberCount: intInRange(t.memberCount, { min: 1, max: 50 }),
         instruments: text(t.instruments, { max: 300 }),
         leaderName: text(t.leaderName, { max: 40 }),
-        leaderContact: text(t.leaderContact, { max: 60 }),
+        leaderContact: text(t.leaderContact, { max: 300 }),
         themeColor: optionalColor(t.themeColor),
         order: order++,
         images,

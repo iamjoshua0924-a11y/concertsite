@@ -101,7 +101,7 @@ export function contentRoutes(router, { db, bucket }) {
     if ('memberCount' in b) set.memberCount = intInRange(b.memberCount, { name: '인원수', min: 1, max: 50 });
     if ('instruments' in b) set.instruments = text(b.instruments, { name: '구성 악기', max: 300 });
     if ('leaderName' in b) set.leaderName = text(b.leaderName, { name: '대표자 이름', max: 40 });
-    if ('leaderContact' in b) set.leaderContact = text(b.leaderContact, { name: '대표자 연락처', max: 60 });
+    if ('leaderContact' in b) set.leaderContact = text(b.leaderContact, { name: '대표자 연락처', max: 300 });
     if ('themeColor' in b) set.themeColor = optionalColor(b.themeColor);
     set.updatedAt = nowIso();
     await teams.updateOne({ _id: team._id }, { $set: set });

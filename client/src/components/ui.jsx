@@ -135,6 +135,7 @@ export function DueBadge({ due, dday }) {
 
 export function Lightbox({ images, index, onClose }) {
   const [i, setI] = useState(index);
+  const touchX = useRef(0);
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
@@ -147,7 +148,20 @@ export function Lightbox({ images, index, onClose }) {
   const img = images[i];
   return (
     <div class="lightbox" onClick={onClose} role="dialog" aria-label="이미지 크게 보기">
-      <img src={fileUrl(img.fileId)} alt={img.alt || ''} onClick={(e) => e.stopPropagation()} />
+      <img
+        src={fileUrl(img.fileId)}
+        alt={img.alt || ''}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          const dx = e.changedTouches[0].clientX - touchX.current;
+          if (Math.abs(dx) > 50 && images.length > 1) setI((x) => (x + (dx < 0 ? 1 : -1) + images.length) % images.length);
+        }}
+      />
+      <div class="lightbox-top" onClick={(e) => e.stopPropagation()}>
+        <a href={fileUrl(img.fileId)} target="_blank" rel="noopener">원본 열기</a>
+        <button class="icon-btn" onClick={onClose} aria-label="닫기">✕</button>
+      </div>
       {images.length > 1 && (
         <div class="lightbox-nav" onClick={(e) => e.stopPropagation()}>
           <button class="icon-btn" onClick={() => setI((i - 1 + images.length) % images.length)} aria-label="이전">‹</button>
@@ -159,19 +173,59 @@ export function Lightbox({ images, index, onClose }) {
   );
 }
 
-export function Attachments({ files }) {
-  if (!files?.length) return null;
+const isImage = (f) => (f.type || '').startsWith('image/');
+
+/** 목록(접힌 상태)에서 보이는 이미지 썸네일 줄. 누르면 바로 크게 보기 */
+export function AttachmentThumbs({ files, max = 4 }) {
+  const [open, setOpen] = useState(null);
+  const images = (files || []).filter(isImage);
+  if (!images.length) return null;
+  const shown = images.slice(0, max);
+  const rest = images.length - shown.length;
   return (
-    <ul class="attachments">
-      {files.map((f) => (
-        <li key={f.fileId}>
-          <a href={fileUrl(f.fileId)} target="_blank" rel="noopener">
-            {f.type?.startsWith('image/') ? <img src={fileUrl(f.fileId)} alt="" loading="lazy" /> : <span class="file-ico">📎</span>}
-            <span>{f.name}</span>
-          </a>
-        </li>
+    <div class="att-thumbs">
+      {shown.map((f, i) => (
+        <button key={f.fileId} class="att-thumb" onClick={() => setOpen(i)} aria-label={`${f.name} 크게 보기`}>
+          <img src={fileUrl(f.fileId)} alt="" loading="lazy" />
+          {i === shown.length - 1 && rest > 0 && <span class="att-more">+{rest}</span>}
+        </button>
       ))}
-    </ul>
+      {open != null && <Lightbox images={images.map((f) => ({ ...f, alt: f.name }))} index={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/** 펼친 본문: 이미지는 화면 폭에 맞춰 바로 표시(누르면 크게), 그 밖의 파일은 내려받기 칩 */
+export function Attachments({ files }) {
+  const [open, setOpen] = useState(null);
+  if (!files?.length) return null;
+  const images = files.filter(isImage);
+  const others = files.filter((f) => !isImage(f));
+  return (
+    <div class="att">
+      {images.length > 0 && (
+        <div class={cx('att-images', images.length === 1 && 'single')}>
+          {images.map((f, i) => (
+            <button key={f.fileId} class="att-image" onClick={() => setOpen(i)} aria-label={`${f.name} 크게 보기`}>
+              <img src={fileUrl(f.fileId)} alt={f.name} loading="lazy" />
+            </button>
+          ))}
+        </div>
+      )}
+      {others.length > 0 && (
+        <ul class="attachments">
+          {others.map((f) => (
+            <li key={f.fileId}>
+              <a href={fileUrl(f.fileId)} target="_blank" rel="noopener">
+                <span class="file-ico" aria-hidden="true">📎</span>
+                <span>{f.name}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {open != null && <Lightbox images={images.map((f) => ({ ...f, alt: f.name }))} index={open} onClose={() => setOpen(null)} />}
+    </div>
   );
 }
 

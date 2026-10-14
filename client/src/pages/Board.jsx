@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { api, pickFiles, uploadFiles } from '../api.js';
 import { navigate, useApp } from '../app.jsx';
-import { Attachments, Button, ConfirmButton, Empty, Field, Modal, PageHead, RichText, Segmented, TeamChip, useForm } from '../components/ui.jsx';
+import { Attachments, AttachmentThumbs, Button, ConfirmButton, Empty, Field, Modal, PageHead, RichText, Segmented, TeamChip, useForm } from '../components/ui.jsx';
 import { cx, formatDate, relativeTime } from '../util.js';
 
 function AttachPicker({ files, setFiles }) {
@@ -92,6 +92,7 @@ function MeetingItem({ m, open, onToggle, onEdit }) {
       {m.decisions.length > 0 && (
         <ul class="decisions">{m.decisions.map((d, i) => <li key={i}>{d}</li>)}</ul>
       )}
+      {!open && <AttachmentThumbs files={m.attachments} />}
       {open && (
         <div class="entry-body">
           {m.actions.length > 0 && (
@@ -159,6 +160,7 @@ function QuestionItem({ q, open, onToggle, teams, canAnswer }) {
           <span class={q.answer ? 'tag tag-solid' : 'tag'}>{q.answer ? '답변 완료' : '답변 대기'}</span>
         </span>
       </button>
+      {!open && <AttachmentThumbs files={q.attachments} />}
       {open && (
         <div class="entry-body">
           <RichText text={q.question} />
@@ -185,8 +187,11 @@ function PostForm({ me, post, onClose }) {
   const { run } = useApp();
   const editing = Boolean(post);
   const f = useForm({ title: post?.title || '', content: post?.content || '', author: me.label, password: post?.password || '' });
+  const [files, setFiles] = useState(post?.attachments || []);
   const save = () => run(
-    () => (editing ? api.patch(`/posts/${post.id}`, { title: f.values.title, content: f.values.content, password: post.password || '' }) : api.post('/posts', f.values)),
+    () => (editing
+      ? api.patch(`/posts/${post.id}`, { title: f.values.title, content: f.values.content, attachments: files, password: post.password || '' })
+      : api.post('/posts', { ...f.values, attachments: files })),
     editing ? '글을 수정했습니다.' : '글을 올렸습니다.',
   ).then(onClose);
   return (
@@ -194,6 +199,7 @@ function PostForm({ me, post, onClose }) {
       <div class="form-grid">
         <Field label="제목" wide><input {...f.bind('title')} /></Field>
         <Field label="내용" wide><textarea rows={8} {...f.bind('content')} /></Field>
+        <div class="field field-wide"><span class="field-label">첨부 (이미지·파일)</span><AttachPicker files={files} setFiles={setFiles} /></div>
         {!editing && (
           <>
             <Field label="작성자"><input {...f.bind('author')} /></Field>
@@ -218,9 +224,11 @@ function PostItem({ p, open, onToggle, onEdit }) {
         <span class="entry-title">{p.title}</span>
         <span class="entry-meta">{p.author}, {relativeTime(p.createdAt)}{p.updatedAt && <span class="pill">수정됨</span>}</span>
       </button>
+      {!open && <AttachmentThumbs files={p.attachments} />}
       {open && (
         <div class="entry-body">
           <RichText text={p.content} />
+          <Attachments files={p.attachments} />
           <footer class="entry-foot">
             <span />
             {p.canEdit ? (
